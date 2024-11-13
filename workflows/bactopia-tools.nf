@@ -360,7 +360,7 @@ workflow BACTOPIATOOLS {
         TETON(samples)
         ch_versions = ch_versions.mix(TETON.out.versions)
     } else if (params.wf == 'personal') {
-        PERSONAL(samples)
+        PERSONAL(samples, [[id: 'personal'], file(params.reference)])
         ch_versions = ch_versions.mix(PERSONAL.out.versions)
     }
 
