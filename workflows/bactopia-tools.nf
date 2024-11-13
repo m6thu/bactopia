@@ -103,6 +103,7 @@ if (params.wf == 'tbprofiler') include { TBPROFILER } from '../subworkflows/loca
 if (params.wf == 'tblastn') include { TBLASTN } from '../subworkflows/local/tblastn/main';
 if (params.wf == 'tblastx') include { TBLASTX } from '../subworkflows/local/tblastx/main';
 if (params.wf == 'teton') include { TETON } from '../subworkflows/local/teton/main';
+if (params.wf == 'personal') include { PERSONAL } from '../subworkflows/local/personal/main';
 
 if (['amrfinderplus', 'mlst'].contains(params.wf)) {
     include { DATASETS } from '../modules/local/bactopia/datasets/main'
@@ -358,6 +359,9 @@ workflow BACTOPIATOOLS {
     } else if (params.wf == 'teton') {
         TETON(samples)
         ch_versions = ch_versions.mix(TETON.out.versions)
+    } else if (params.wf == 'personal') {
+        PERSONAL(samples)
+        ch_versions = ch_versions.mix(PERSONAL.out.versions)
     }
 
     // Collect Versions
