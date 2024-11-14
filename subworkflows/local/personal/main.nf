@@ -41,8 +41,6 @@ include { IQTREE } from '../iqtree/main' addParams( options: [suffix: 'core-snp'
 include { SNPDISTS } from '../../../modules/nf-core/snpdists/main' addParams( options: [suffix: 'core-snp.distance'] )
 
 
-
-
 process REFFIRSTFASTA {
 
     // Not strictly necessary to be samtools - should run on pure bash, but will call non-existing docker image otherwise
@@ -52,18 +50,24 @@ process REFFIRSTFASTA {
     tuple val(meta), path(fasta)
 
     output:
-    tuple val(meta), path("*.fasta")                  , emit: fasta
+    tuple val(meta), path("*.fa")                  , emit: fasta
     path "*.{log,err}"                           , optional: true, emit: logs
     path ".command.*"                                            , emit: nf_logs
     path "versions.yml"                                          , emit: versions
 
     script:
+    def is_compressed = fasta.getName().endsWith(".gz") ? true : false
+    def fasta_name = fasta.getName().replace(".gz", "")
     """
-    sequence_count=\$(grep -c "^>" "$fasta")
+    if [ "$is_compressed" == "true" ]; then
+        gzip -c -d $fasta > $fasta_name
+    fi
 
-    awk '/^>/{n++} {if (n == '\$sequence_count') print}' ${fasta} > reffirst-${fasta}.fasta
+    sequence_count=\$(grep -c "^>" "$fasta_name")
 
-    awk '/^>/{n++; if (n == '\$sequence_count') exit} {if (n < '\$sequence_count') print}' ${fasta} >> reffirst-${fasta}.fasta
+    awk '/^>/{n++} {if (n == '\$sequence_count') print}' ${fasta_name} > reffirst-${fasta_name}.fa
+
+    awk '/^>/{n++; if (n == '\$sequence_count') exit} {if (n < '\$sequence_count') print}' ${fasta_name} >> reffirst-${fasta_name}.fa
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -94,6 +98,7 @@ workflow PERSONAL {
     // Assumes last aln from snippy is always Reference. 
     // Flip last to be first entry in alignment because gubbins use first entry as ref for vcf generation.
     REFFIRSTFASTA(SNIPPY_CORE_MODULE.out.clean_full_aln)
+    ch_versions = ch_versions.mix(REFFIRSTFASTA.out.versions)
 
     // Identify Recombination
     if (!params.skip_recombination) {
