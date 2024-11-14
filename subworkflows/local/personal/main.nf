@@ -1,7 +1,9 @@
 //
 // snippy - Rapid variant calling from sequence reads
 //
-include { initOptions } from '../../../lib/nf/functions'
+//include { initOptions } from '../../../lib/nf/functions'
+// import saveFiles needs for local processes - might be better to make it it's own module
+include { initOptions; saveFiles } from '../../../lib/nf/functions'
 
 // snippy options
 snippy_opts = initOptions(params.containsKey("options") ? params.options : [:], 'snippy')
@@ -38,6 +40,38 @@ include { GUBBINS } from '../gubbins/main' addParams( options: [suffix: 'core-sn
 include { IQTREE } from '../iqtree/main' addParams( options: [suffix: 'core-snp', ignore: [".aln.gz"]] )
 include { SNPDISTS } from '../../../modules/nf-core/snpdists/main' addParams( options: [suffix: 'core-snp.distance'] )
 
+
+
+
+process REFFIRSTFASTA {
+
+    // Not strictly necessary to be samtools - should run on pure bash, but will call non-existing docker image otherwise
+    container 'quay.io/biocontainers/samtools:1.9--h91753b0_8'
+
+    input:
+    tuple val(meta), path(fasta)
+
+    output:
+    tuple val(meta), path("*.fasta")                  , emit: fasta
+    path "*.{log,err}"                           , optional: true, emit: logs
+    path ".command.*"                                            , emit: nf_logs
+    path "versions.yml"                                          , emit: versions
+
+    script:
+    """
+    sequence_count=\$(grep -c "^>" "$fasta")
+
+    awk '/^>/{n++} {if (n == '\$sequence_count') print}' ${fasta} > reffirst-${fasta}.fasta
+
+    awk '/^>/{n++; if (n == '\$sequence_count') exit} {if (n < '\$sequence_count') print}' ${fasta} >> reffirst-${fasta}.fasta
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(echo \$(bash --version) | sed -n \'s/.*version \\([0-9.()]\\+\\)-release.*/\\1/p\')
+    END_VERSIONS
+    """
+}
+
 workflow PERSONAL {
     take:
     reads // channel: [ val(meta), [ reads ] ]
@@ -57,15 +91,19 @@ workflow PERSONAL {
     SNIPPY_CORE_MODULE(ch_snippy_core, reference, MASK)
     ch_versions = ch_versions.mix(SNIPPY_CORE_MODULE.out.versions.first())
 
-    // Per-sample SNP distances
-    SNPDISTS(SNIPPY_CORE_MODULE.out.clean_full_aln)
-    ch_versions = ch_versions.mix(SNPDISTS.out.versions)
+    // Assumes last aln from snippy is always Reference. 
+    // Flip last to be first entry in alignment because gubbins use first entry as ref for vcf generation.
+    REFFIRSTFASTA(SNIPPY_CORE_MODULE.out.clean_full_aln)
 
     // Identify Recombination
     if (!params.skip_recombination) {
         // Run Gubbins
-        GUBBINS(SNIPPY_CORE_MODULE.out.clean_full_aln)
+        GUBBINS(REFFIRSTFASTA.out.fasta)
         ch_versions = ch_versions.mix(GUBBINS.out.versions)
+
+        // Recombination filtered Per-sample SNP distances
+        SNPDISTS(GUBBINS.out.fasta)
+        ch_versions = ch_versions.mix(SNPDISTS.out.versions)
     }
 
     // Create core-snp phylogeny
@@ -77,6 +115,8 @@ workflow PERSONAL {
         }
         ch_versions = ch_versions.mix(IQTREE.out.versions)
     }
+
+    // Adding more stuff here should not stale the resume cache
 
     emit:
     versions = ch_versions // channel: [ versions.yml ]
