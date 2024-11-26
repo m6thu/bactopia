@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
+nextflow.enable.moduleBinaries = true
 
 /*
 ========================================================================================

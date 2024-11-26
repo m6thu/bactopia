@@ -1,9 +1,7 @@
 //
-// snippy - Rapid variant calling from sequence reads
+// (adjusted) snippy - Rapid variant calling from sequence reads
 //
-//include { initOptions } from '../../../lib/nf/functions'
-// import saveFiles needs for local processes - might be better to make it it's own module
-include { initOptions; saveFiles } from '../../../lib/nf/functions'
+include { initOptions} from '../../../lib/nf/functions'
 
 // snippy options
 snippy_opts = initOptions(params.containsKey("options") ? params.options : [:], 'snippy')
@@ -36,45 +34,10 @@ core_opts.suffix = "core-snp"
 
 include { SNIPPY_RUN as SNIPPY_RUN_MODULE }  from '../../../modules/nf-core/snippy/run/main' addParams( options: snippy_opts )
 include { SNIPPY_CORE as SNIPPY_CORE_MODULE }  from '../../../modules/nf-core/snippy/core/main' addParams( options: core_opts )
+include { REFFIRSTFASTA } from '../../../modules/local/perlscripts/reffirstfasta/main'
 include { GUBBINS } from '../gubbins/main' addParams( options: [suffix: 'core-snp', ignore: [".aln.gz"]] )
 include { IQTREE } from '../iqtree/main' addParams( options: [suffix: 'core-snp', ignore: [".aln.gz"]] )
 include { SNPDISTS } from '../../../modules/nf-core/snpdists/main' addParams( options: [suffix: 'core-snp.distance'] )
-
-
-process REFFIRSTFASTA {
-
-    // Not strictly necessary to be samtools - should run on pure bash, but will call non-existing docker image otherwise
-    container 'quay.io/biocontainers/samtools:1.9--h91753b0_8'
-
-    input:
-    tuple val(meta), path(fasta)
-
-    output:
-    tuple val(meta), path("*.fa")                  , emit: fasta
-    path "*.{log,err}"                           , optional: true, emit: logs
-    path ".command.*"                                            , emit: nf_logs
-    path "versions.yml"                                          , emit: versions
-
-    script:
-    def is_compressed = fasta.getName().endsWith(".gz") ? true : false
-    def fasta_name = fasta.getName().replace(".gz", "")
-    """
-    if [ "$is_compressed" == "true" ]; then
-        gzip -c -d $fasta > $fasta_name
-    fi
-
-    sequence_count=\$(grep -c "^>" "$fasta_name")
-
-    awk '/^>/{n++} {if (n == '\$sequence_count') print}' ${fasta_name} > reffirst-${fasta_name}.fa
-
-    awk '/^>/{n++; if (n == '\$sequence_count') exit} {if (n < '\$sequence_count') print}' ${fasta_name} >> reffirst-${fasta_name}.fa
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        bash: \$(echo \$(bash --version) | sed -n \'s/.*version \\([0-9.()]\\+\\)-release.*/\\1/p\')
-    END_VERSIONS
-    """
-}
 
 workflow PERSONAL {
     take:
