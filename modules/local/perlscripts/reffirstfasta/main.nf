@@ -1,7 +1,7 @@
 // Import generic module functions
 include { initOptions; saveFiles } from '../../../../lib/nf/functions'
-options     = initOptions(params.containsKey("options") ? params.options : [:], 'perlscripts')
-options.btype = options.btype ?: "tools"
+options     = initOptions(params.containsKey("options") ? params.options : [:], 'reffirstfasta')
+options.btype = options.btype ?: "comparative"
 conda_tools = "bioconda::perl-bioperl=1.7.8"
 conda_name  = conda_tools.replace("=", "-").replace(":", "-").replace(" ", "-")
 conda_env   = file("${params.condadir}/${conda_name}").exists() ? "${params.condadir}/${conda_name}" : conda_tools
@@ -31,11 +31,11 @@ process REFFIRSTFASTA {
         gzip -c -d $fasta > $fasta_name
     fi
 
-    fasta_reorder.pl $fasta_name Reference 1
+    fasta_reorder.pl $fasta_name ${params.sample_name} ${params.position}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        perl: \$(echo \$(perl --version) | grep -oP \'(v[0-9.]+)\')
+        perl: \$(echo \$(perl --version) | grep -oE \'(v[0-9.]+)\')
     END_VERSIONS
     """
 }
