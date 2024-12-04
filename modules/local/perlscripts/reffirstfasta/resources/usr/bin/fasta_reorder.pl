@@ -6,7 +6,7 @@ sub croak { die " $0: @_: $!\n" }
 
 sub usage {
     my $usage =<<'END_USAGE';
-Usage: perl fasta_reorder.pl <file>.aln <seq_name> <order>
+Usage: fasta_reorder.pl <file>.aln <seq_name> <order>
 
 Takes in a multi-fasta file and moves <seq_name> to the to first or last sequence
  in the <out>.aln.

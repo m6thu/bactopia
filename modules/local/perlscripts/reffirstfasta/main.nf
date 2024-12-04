@@ -31,7 +31,7 @@ process REFFIRSTFASTA {
         gzip -c -d $fasta > $fasta_name
     fi
 
-    fasta_reorder.pl $fasta_name ${params.sample_name} ${params.position}
+    fasta_reorder.pl $fasta_name Reference 1
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
